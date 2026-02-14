@@ -16,7 +16,7 @@ import {
   $isTextNode,
   COMMAND_PRIORITY_LOW,
   CLICK_COMMAND,
-  type TextNode,
+  TextNode,
 } from 'lexical';
 import { mergeRegister } from '@lexical/utils';
 import { useRouter } from 'next/navigation';
@@ -69,13 +69,13 @@ function $convertWikiLinks(node: TextNode): void {
     return;
   }
 
-  // Build replacement nodes
+  // Build replacement nodes (filter out empty text nodes)
   const nodes: (TextNode | WikiLinkNode)[] = [];
   let partIndex = 0;
 
   for (let i = 0; i < matches.length; i++) {
-    // Add text before this match
-    if (parts[partIndex]) {
+    // Add text before this match (only if not empty)
+    if (parts[partIndex] && parts[partIndex].length > 0) {
       const textNode = node.constructor.clone(node) as TextNode;
       textNode.setTextContent(parts[partIndex]);
       nodes.push(textNode);
@@ -91,20 +91,29 @@ function $convertWikiLinks(node: TextNode): void {
     resolveWikiLink(wikiLinkNode, noteTitle);
   }
 
-  // Add remaining text
-  if (parts[partIndex]) {
+  // Add remaining text (only if not empty)
+  if (parts[partIndex] && parts[partIndex].length > 0) {
     const textNode = node.constructor.clone(node) as TextNode;
     textNode.setTextContent(parts[partIndex]);
     nodes.push(textNode);
   }
 
   // Replace the original node with the new nodes
-  if (nodes.length > 0) {
-    node.replace(nodes[0]);
-    for (let i = 1; i < nodes.length; i++) {
-      nodes[i - 1].insertAfter(nodes[i]);
-    }
+  if (nodes.length === 0) {
+    return;
   }
+
+  // Use parent splice for safe multi-node insertion
+  const parent = node.getParent();
+  if (!parent) {
+    return;
+  }
+
+  const index = node.getIndexWithinParent();
+  node.remove();
+
+  // Insert all new nodes at once
+  parent.splice(index, 0, nodes);
 }
 
 /**
